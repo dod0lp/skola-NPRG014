@@ -15,10 +15,39 @@
 // properties, closure delegates, the 'object.with(Closure)' method, etc.
 
 
-List<String> processNumbers(List<Operation> userInput, List<Integer> numbers) {
-    //Function that runs the provided operations on the provided collection of numbers. Needs to be implemented.
-    // ...
+// with List<String> it does warning
+static List<Integer> processNumbers(List<Operation> userInput, List<Integer> numbers) {
+    final lenght = numbers.size()
+    final binding = new Binding([LENGTH: lenght])
+    def groovyShell = new GroovyShell(binding)
+    def ans = numbers
+
+    userInput.each { op ->
+        final toEval = "{ it -> ${op.command} }"
+        def closure = groovyShell.evaluate(toEval) as Closure
+
+        op.with {
+            switch (type) {
+                case OperationType.FILTER:
+                    ans = ans.findAll(closure)
+                    break
+
+                case OperationType.TRANSFORMATION:
+                    ans = ans.collect(closure)
+                    break
+
+                default:
+                    // idk
+                    ans = null
+                    break
+            }
+        }
+    }
+
+    return ans
 }
+
+
 
 
 
