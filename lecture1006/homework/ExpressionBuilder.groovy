@@ -39,11 +39,35 @@ class NumericExpressionBuilder extends BuilderSupport {
         }
     }
 
-    Item rootItem() { root }
+    Item rootItem() { root; }
 }
 
 @Category(Item)
 class ToStringCategory {
+    static boolean needsParentheses(Item parent, Item child, boolean isRight) {
+        if (child.type in ['number','variable']) {
+            return false;
+        }
+
+        final def precedence = ['+':10, '-':10, '*':20,'/':20, 'power':30];
+        // arbitrary "small" and "big" number to set precedence
+        final def parentPrec = precedence[parent.type] ?: 0;
+        final def childPrec = precedence[child.type] ?: 100;
+
+        if (childPrec == parentPrec) {
+            if (parent.type == 'power') {
+                return isRight;
+            }
+
+            if (parent.type in ['-', '/'] && isRight) {
+                return true;
+            }
+        }
+
+        return (childPrec < parentPrec);
+    }
+
+
     static String prettyToString(Item self) {
         if (self.type in ['number', 'variable']) {
             return "${self.value}"
@@ -55,21 +79,20 @@ class ToStringCategory {
             return "${self.type}(${c[0]})"
         };
 
-        def op = (self.type == 'power') ? '^' : self.type;
-        def precedence = ['+':10, '-':10, '*':20, '/':20, '^':30];
 
-        def left = c[0];
-        def right = c[1];
+        final def left = c[0];
+        final def right = c[1];
+        final def op = (self.type == 'power') ? '^' : self.type;
 
         def leftStr = left.toString();
         def rightStr = right.toString();
+        if (needsParentheses(self, left, false)) {
+            leftStr = "(${leftStr})";
+        }
 
-        def final _st = precedence[self.type];
-        def final _lt = precedence[left.type];
-        def final _rt = precedence[right.type];
-
-        if (left.type && _lt < _st) leftStr = "(${leftStr})";
-        if (right.type && _rt <= _st) rightStr = "(${rightStr})";
+        if (needsParentheses(self, right, true)) {
+            rightStr = "(${rightStr})";
+        }
 
         return "${leftStr} ${op} ${rightStr}";
     }
