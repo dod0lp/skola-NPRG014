@@ -6,13 +6,87 @@
 // This means that parentheses must be placed where necessary with respect to the mathematical operator priorities.
 // Change or add to the code in the script. Reuse the infrastructure code at the bottom of the script.
 class NumericExpressionBuilder extends BuilderSupport {
+    Item root;
 
+    protected void setParent(Object parent, Object child) {
+        parent.children << child;
+    }
+
+    protected Object createNode(Object name) {
+        return new Item(type: name);
+    }
+
+    protected Object createNode(Object name, Map attributes) {
+        def node = new Item(type: name);
+        if (attributes.value != null) {
+            node.value = attributes.value;
+        }
+
+        return node;
+    }
+
+    protected Object createNode(Object name, Object value) {
+        new Item(type: name, value: value);
+    }
+
+    protected Object createNode(Object name, Map attributes, Object value) {
+        new Item(type: name, value: attributes?.value ?: value);
+    }
+
+    protected void nodeCompleted(Object parent, Object node) {
+        if (!parent) {
+            root = node as Item;
+        }
+    }
+
+    Item rootItem() { root }
+}
+
+@Category(Item)
+class ToStringCategory {
+    static String prettyToString(Item self) {
+        if (self.type in ['number', 'variable']) {
+            return "${self.value}"
+        };
+
+        def c = self.children;
+
+        if (c.size() == 1) {
+            return "${self.type}(${c[0]})"
+        };
+
+        def op = (self.type == 'power') ? '^' : self.type;
+        def precedence = ['+':10, '-':10, '*':20, '/':20, '^':30];
+
+        def left = c[0];
+        def right = c[1];
+
+        def leftStr = left.toString();
+        def rightStr = right.toString();
+
+        def final _st = precedence[self.type];
+        def final _lt = precedence[left.type];
+        def final _rt = precedence[right.type];
+
+        if (left.type && _lt < _st) leftStr = "(${leftStr})";
+        if (right.type && _rt <= _st) rightStr = "(${rightStr})";
+
+        return "${leftStr} ${op} ${rightStr}";
+    }
 }
 
 class Item {
+    String type;
+    def value;
+    List<Item> children = [];
+
     @Override
     public String toString() {
-        super.toString()
+        use(ToStringCategory) {
+            // this.prettyToString(this);
+            // prettyToString();
+            this.prettyToString();
+        }
     }
 }
 //------------------------- Do not modify beyond this point!
@@ -23,7 +97,6 @@ def build(builder, String specification) {
     new GroovyShell(binding).evaluate(specification)
 }
 
-//Custom expression to display. It should be eventually pretty-printed as 10 + x * (2 - 3) / 8 ^ (9 - 5)
 String description = '''
 builder.'+' {
     number(value: 10)
@@ -46,10 +119,8 @@ builder.'+' {
 }
 '''
 
-//XML builder building an XML document
 build(new groovy.xml.MarkupBuilder(), description)
 
-//NumericExpressionBuilder building a hierarchy of Items to represent the expression
 def expressionBuilder = new NumericExpressionBuilder()
 build(expressionBuilder, description)
 def expression = expressionBuilder.rootItem()
