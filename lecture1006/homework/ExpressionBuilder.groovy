@@ -70,14 +70,14 @@ class ToStringCategory {
 
     static String prettyToString(Item self) {
         if (self.type in ['number', 'variable']) {
-            return "${self.value}"
+            return "${self.value}";
         };
 
         def c = self.children;
 
         if (c.size() == 1) {
-            return "${self.type}(${c[0]})"
-        };
+            return "${self.type}(${c[0]})";
+        }
 
 
         final def left = c[0];
@@ -120,6 +120,7 @@ def build(builder, String specification) {
     new GroovyShell(binding).evaluate(specification)
 }
 
+//Custom expression to display. It should be eventually pretty-printed as 10 + x * (2 - 3) / 8 ^ (9 - 5)
 String description = '''
 builder.'+' {
     number(value: 10)
@@ -142,8 +143,10 @@ builder.'+' {
 }
 '''
 
+//XML builder building an XML document
 build(new groovy.xml.MarkupBuilder(), description)
 
+//NumericExpressionBuilder building a hierarchy of Items to represent the expression
 def expressionBuilder = new NumericExpressionBuilder()
 build(expressionBuilder, description)
 def expression = expressionBuilder.rootItem()
