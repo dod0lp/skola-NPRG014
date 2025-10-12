@@ -36,6 +36,57 @@ public class CreatedAtTransformation implements ASTTransformation {
     static final int ACC_PRIVATE = 2
     static final int ACC_PUBLIC = 1
     static final int ACC_FINAL = 16
+    private static String _SYS_CUR_TIME = "currentTimeMillis"
+    private static String _LAST_UPD = "__lastUpdated"
+    private static String _CREATED_AT = "__createdAt"
+
+
+    private static MethodCallExpression getSysCurTime() {
+        return new MethodCallExpression(
+                new ClassExpression(ClassHelper.make(System)),
+                _SYS_CUR_TIME,
+                ArgumentListExpression.EMPTY_ARGUMENTS
+        )
+    }
+
+    private static BinaryExpression assignMethodCallToField(FieldNode timestampField, MethodCallExpression nowCall) {
+        new BinaryExpression(
+                new FieldExpression(timestampField),
+                Token.newSymbol(EQUAL, -1, -1), // I put compare_equal here at first accidentally and was debugging code for so long💀
+                nowCall
+        )
+    }
+
+    private static IfStatement updateTimestampStatement(FieldNode lastUpdatedField, FieldNode timestampField) {
+        // --- update timestamp only if >1s has passed ---
+        // (System.currentTimeMillis() - this.__lastUpdated) > 1000
+        MethodCallExpression nowCall = getSysCurTime()
+        BinaryExpression timeDiff = new BinaryExpression(
+                nowCall,
+                Token.newSymbol(MINUS, -1, -1),
+                new FieldExpression(lastUpdatedField)
+        )
+        BinaryExpression condition = new BinaryExpression(
+                timeDiff,
+                Token.newSymbol(COMPARE_GREATER_THAN, -1, -1),
+                new ConstantExpression(1000L)
+        )
+
+        // { this.__createdAt = now; this.__lastUpdated = now; }
+        BlockStatement thenBlock = new BlockStatement()
+        thenBlock.addStatement(new ExpressionStatement(
+                assignMethodCallToField(timestampField, nowCall)
+        ))
+        thenBlock.addStatement(new ExpressionStatement(
+                new BinaryExpression(
+                        new FieldExpression(lastUpdatedField),
+                        Token.newSymbol(EQUAL, -1, -1),
+                        nowCall
+                )
+        ))
+
+        return new IfStatement(new BooleanExpression(condition), thenBlock, EmptyStatement.INSTANCE)
+    }
 
     public void visit(ASTNode[] astNodes, SourceUnit source) {
 
@@ -69,27 +120,19 @@ public class CreatedAtTransformation implements ASTTransformation {
 
         // --- private long field(s) ---
         FieldNode timestampField = new FieldNode(
-            "__createdAt",
+            _CREATED_AT,
             ACC_PRIVATE,
             ClassHelper.long_TYPE,
             classNode,
-            new MethodCallExpression(
-                    new ClassExpression(ClassHelper.make(System)),
-                    "currentTimeMillis",
-                    ArgumentListExpression.EMPTY_ARGUMENTS
-            )
+            getSysCurTime()
         )
 
         FieldNode lastUpdatedField = new FieldNode(
-                "__lastUpdated",
-                ACC_PRIVATE,
-                ClassHelper.long_TYPE,
-                classNode,
-                new MethodCallExpression( // or should these be in some init block for whole class?
-                        new ClassExpression(ClassHelper.make(System)),
-                        "currentTimeMillis",
-                        ArgumentListExpression.EMPTY_ARGUMENTS
-                )
+            _LAST_UPD,
+            ACC_PRIVATE,
+            ClassHelper.long_TYPE,
+            classNode,
+            getSysCurTime()
         )
 
         classNode.addField(timestampField)
@@ -103,7 +146,8 @@ public class CreatedAtTransformation implements ASTTransformation {
         }
 
         BlockStatement getterBody = new BlockStatement()
-        getterBody.addStatement(new ReturnStatement(new VariableExpression("__createdAt")))
+        getterBody.addStatement(updateTimestampStatement(lastUpdatedField, timestampField))
+        getterBody.addStatement(new ReturnStatement(new VariableExpression(_CREATED_AT)))
 
         MethodNode getterMethod = new MethodNode(getterName,
                 ACC_PUBLIC | ACC_FINAL,
@@ -118,56 +162,20 @@ public class CreatedAtTransformation implements ASTTransformation {
                     ? (BlockStatement) method.code
                     : new BlockStatement()
 
-            // --- build the if statement: update timestamp only if 1s has passed ---
-            MethodCallExpression nowCall = new MethodCallExpression(
-                    new ClassExpression(ClassHelper.make(System)),
-                    "currentTimeMillis",
-                    ArgumentListExpression.EMPTY_ARGUMENTS
-            )
-
-            // (System.currentTimeMillis() - this.__lastUpdated) > 1000
-            BinaryExpression timeDiff = new BinaryExpression(
-                    nowCall,
-                    Token.newSymbol(MINUS, -1, -1),
-                    new FieldExpression(lastUpdatedField)
-            )
-            BinaryExpression condition = new BinaryExpression(
-                    timeDiff,
-                    Token.newSymbol(COMPARE_GREATER_THAN, -1, -1),
-                    new ConstantExpression(1000L)
-            )
-
-            // then block: { this.__createdAt = now; this.__lastUpdated = now; }
-            BlockStatement thenBlock = new BlockStatement()
-            thenBlock.addStatement(new ExpressionStatement(
-                    new BinaryExpression(
-                            new FieldExpression(timestampField),
-                            Token.newSymbol(COMPARE_EQUAL, -1, -1),
-                            nowCall
-                    )
-            ))
-            thenBlock.addStatement(new ExpressionStatement(
-                    new BinaryExpression(
-                            new FieldExpression(lastUpdatedField),
-                            Token.newSymbol(EQUAL, -1, -1),
-                            nowCall
-                    )
-            ))
-
-            IfStatement ifStmt = new IfStatement(new BooleanExpression(condition), thenBlock, EmptyStatement.INSTANCE)
             BlockStatement newCode = new BlockStatement()
-            newCode.addStatement(ifStmt)
+            newCode.addStatement(updateTimestampStatement(lastUpdatedField, timestampField))
             newCode.addStatements(originalCode.statements)
             method.code = newCode
         }
 
         // --- clearTimestamp() ---
         BlockStatement clearBody = new BlockStatement()
-        clearBody.addStatement(new ExpressionStatement(new BinaryExpression(new VariableExpression("__createdAt"),
+        clearBody.addStatement(new ExpressionStatement(new BinaryExpression(new VariableExpression(_CREATED_AT),
                 Token.newSymbol(EQUAL, -1, -1),
                 new ConstantExpression(0L))))
 
-        MethodNode clearMethod = new MethodNode("clearTimestamp",
+        MethodNode clearMethod = new MethodNode(
+                "clearTimestamp",
                 ACC_PUBLIC,
                 ClassHelper.VOID_TYPE,
                 Parameter.EMPTY_ARRAY,
