@@ -32,16 +32,18 @@ public @interface CreatedAt {
 
 @GroovyASTTransformation(phase = SEMANTIC_ANALYSIS)
 public class CreatedAtTransformation implements ASTTransformation {
-    // my IDE couldnt read it even tho docs say these rae "inherited from interface org.objectweb.asm.Opcodes"
+    // my IDE couldnt parse fields "inherited from interface org.objectweb.asm.Opcodes"
     static final int ACC_PRIVATE = 2
     static final int ACC_PUBLIC = 1
     static final int ACC_FINAL = 16
-    private static String _SYS_CUR_TIME = "currentTimeMillis"
+
     private static String _LAST_UPD = "__lastUpdated"
     private static String _CREATED_AT = "__createdAt"
 
 
     private static MethodCallExpression getSysCurTime() {
+        final String _SYS_CUR_TIME = "currentTimeMillis"
+
         return new MethodCallExpression(
                 new ClassExpression(ClassHelper.make(System)),
                 _SYS_CUR_TIME,
@@ -49,23 +51,26 @@ public class CreatedAtTransformation implements ASTTransformation {
         )
     }
 
-    private static BinaryExpression assignMethodCallToField(FieldNode timestampField, MethodCallExpression nowCall) {
+    private static BinaryExpression assignMethodCallToField(
+            FieldNode fieldNode, MethodCallExpression nowCall) {
         new BinaryExpression(
-                new FieldExpression(timestampField),
-                Token.newSymbol(EQUAL, -1, -1), // I put compare_equal here at first accidentally and was debugging code for so long💀
+                new FieldExpression(fieldNode),
+                Token.newSymbol(EQUAL, -1, -1),
                 nowCall
         )
     }
 
-    private static IfStatement updateTimestampStatement(FieldNode lastUpdatedField, FieldNode timestampField) {
-        // --- update timestamp only if >1s has passed ---
+    private static IfStatement updateTimestampStatement(
+            FieldNode lastUpdatedField, FieldNode timestampField) {
         // (System.currentTimeMillis() - this.__lastUpdated) > 1000
         MethodCallExpression nowCall = getSysCurTime()
+
         BinaryExpression timeDiff = new BinaryExpression(
                 nowCall,
                 Token.newSymbol(MINUS, -1, -1),
                 new FieldExpression(lastUpdatedField)
         )
+
         BinaryExpression condition = new BinaryExpression(
                 timeDiff,
                 Token.newSymbol(COMPARE_GREATER_THAN, -1, -1),
@@ -75,17 +80,15 @@ public class CreatedAtTransformation implements ASTTransformation {
         // { this.__createdAt = now; this.__lastUpdated = now; }
         BlockStatement thenBlock = new BlockStatement()
         thenBlock.addStatement(new ExpressionStatement(
-                assignMethodCallToField(timestampField, nowCall)
-        ))
+                assignMethodCallToField(timestampField, nowCall)))
         thenBlock.addStatement(new ExpressionStatement(
-                new BinaryExpression(
-                        new FieldExpression(lastUpdatedField),
-                        Token.newSymbol(EQUAL, -1, -1),
-                        nowCall
-                )
-        ))
+                assignMethodCallToField(lastUpdatedField, nowCall)))
 
-        return new IfStatement(new BooleanExpression(condition), thenBlock, EmptyStatement.INSTANCE)
+        return new IfStatement(
+                new BooleanExpression(condition),
+                thenBlock,
+                EmptyStatement.INSTANCE
+        )
     }
 
     public void visit(ASTNode[] astNodes, SourceUnit source) {
@@ -113,26 +116,25 @@ public class CreatedAtTransformation implements ASTTransformation {
         // ClassNode.addField() accepts an expression, which can be obtained from a BlockStatement as blockStatement.statements.expression
         // ClassNode.addMethod() accepts a BlockStatement
 
-        //TODO Implement this method
-        AnnotationNode annotationNode = astNodes[0]
+        AnnotationNode annotationNode = astNodes[0] as AnnotationNode
         if (!(astNodes[1] instanceof ClassNode)) return
-        ClassNode classNode = astNodes[1]
+        ClassNode classNode = astNodes[1] as ClassNode
 
         // --- private long field(s) ---
         FieldNode timestampField = new FieldNode(
-            _CREATED_AT,
-            ACC_PRIVATE,
-            ClassHelper.long_TYPE,
-            classNode,
-            getSysCurTime()
+                _CREATED_AT,
+                ACC_PRIVATE,
+                ClassHelper.long_TYPE,
+                classNode,
+                getSysCurTime()
         )
 
         FieldNode lastUpdatedField = new FieldNode(
-            _LAST_UPD,
-            ACC_PRIVATE,
-            ClassHelper.long_TYPE,
-            classNode,
-            getSysCurTime()
+                _LAST_UPD,
+                ACC_PRIVATE,
+                ClassHelper.long_TYPE,
+                classNode,
+                getSysCurTime()
         )
 
         classNode.addField(timestampField)
@@ -149,12 +151,14 @@ public class CreatedAtTransformation implements ASTTransformation {
         getterBody.addStatement(updateTimestampStatement(lastUpdatedField, timestampField))
         getterBody.addStatement(new ReturnStatement(new VariableExpression(_CREATED_AT)))
 
-        MethodNode getterMethod = new MethodNode(getterName,
+        MethodNode getterMethod = new MethodNode(
+                getterName,
                 ACC_PUBLIC | ACC_FINAL,
                 ClassHelper.long_TYPE,
                 Parameter.EMPTY_ARRAY,
                 ClassNode.EMPTY_ARRAY,
-                getterBody)
+                getterBody
+        )
         classNode.addMethod(getterMethod)
 
         classNode.methods.each { MethodNode method ->
@@ -180,7 +184,8 @@ public class CreatedAtTransformation implements ASTTransformation {
                 ClassHelper.VOID_TYPE,
                 Parameter.EMPTY_ARRAY,
                 ClassNode.EMPTY_ARRAY,
-                clearBody)
+                clearBody
+        )
         classNode.addMethod(clearMethod)
     }
 }
