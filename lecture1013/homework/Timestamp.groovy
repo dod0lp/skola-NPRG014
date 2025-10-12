@@ -22,7 +22,6 @@ import org.codehaus.groovy.syntax.*
 import org.codehaus.groovy.transform.*
 import static org.codehaus.groovy.syntax.Types.*
 
-
 @Retention(RetentionPolicy.SOURCE)
 @Target([ElementType.TYPE])
 @GroovyASTTransformationClass("CreatedAtTransformation")
@@ -33,6 +32,7 @@ public @interface CreatedAt {
 
 @GroovyASTTransformation(phase = SEMANTIC_ANALYSIS)
 public class CreatedAtTransformation implements ASTTransformation {
+    // my IDE couldnt read it even tho docs say these rae "inherited from interface org.objectweb.asm.Opcodes"
     static final int ACC_PRIVATE = 2
     static final int ACC_PUBLIC = 1
     static final int ACC_FINAL = 16
@@ -67,15 +67,35 @@ public class CreatedAtTransformation implements ASTTransformation {
         if (!(astNodes[1] instanceof ClassNode)) return
         ClassNode classNode = astNodes[1]
 
-        // --- Add private long field ---
-        FieldNode timestampField = new FieldNode("__createdAt",
+        // --- private long field(s) ---
+        FieldNode timestampField = new FieldNode(
+            "__createdAt",
+            ACC_PRIVATE,
+            ClassHelper.long_TYPE,
+            classNode,
+            new MethodCallExpression(
+                    new ClassExpression(ClassHelper.make(System)),
+                    "currentTimeMillis",
+                    ArgumentListExpression.EMPTY_ARGUMENTS
+            )
+        )
+
+        FieldNode lastUpdatedField = new FieldNode(
+                "__lastUpdated",
                 ACC_PRIVATE,
                 ClassHelper.long_TYPE,
                 classNode,
-                new ConstantExpression(0L))
-        classNode.addField(timestampField)
+                new MethodCallExpression( // or should these be in some init block for whole class?
+                        new ClassExpression(ClassHelper.make(System)),
+                        "currentTimeMillis",
+                        ArgumentListExpression.EMPTY_ARGUMENTS
+                )
+        )
 
-        // --- Add public final getter method ---
+        classNode.addField(timestampField)
+        classNode.addField(lastUpdatedField)
+
+        // --- public final getter named ---
         String getterName = "createdAt"
         def nameAttr = annotationNode.getMember("name")
         if (nameAttr instanceof ConstantExpression && nameAttr.value) {
@@ -93,47 +113,58 @@ public class CreatedAtTransformation implements ASTTransformation {
                 getterBody)
         classNode.addMethod(getterMethod)
 
-        // --- "Enhance" all existing methods ---
         classNode.methods.each { MethodNode method ->
-            // smth i seen in docs
-            if (method.isSynthetic() || method.name.contains("<init>")) return
-            BlockStatement originalCode = method.code instanceof BlockStatement ? method.code : new BlockStatement()
+            BlockStatement originalCode = method.code instanceof BlockStatement
+                    ? (BlockStatement) method.code
+                    : new BlockStatement()
 
-            // update timestamp if more than 1s has passed
-            BlockStatement newCode = new BlockStatement()
+            // --- build the if statement: update timestamp only if 1s has passed ---
+            MethodCallExpression nowCall = new MethodCallExpression(
+                    new ClassExpression(ClassHelper.make(System)),
+                    "currentTimeMillis",
+                    ArgumentListExpression.EMPTY_ARGUMENTS
+            )
 
-            // if (System.currentTimeMillis() - __createdAt > 1000) { __createdAt = System.currentTimeMillis() }
-            // --- if (System.currentTimeMillis() - this.__createdAt > 1000) { this.__createdAt = System.currentTimeMillis() } ---
-            newCode.addStatement(new IfStatement(
-                    // wrap the BinaryExpression in a BooleanExpression (required by IfStatement constructors)
-                    new BooleanExpression(new BinaryExpression(
-                            // left side: System.currentTimeMillis() - this.__createdAt
-                            new BinaryExpression(
-                                new MethodCallExpression(
-                                    new ClassExpression(ClassHelper.make(System)),
-                                        "currentTimeMillis",
-                                        ArgumentListExpression.EMPTY_ARGUMENTS),
-                                        Token.newSymbol(MINUS, -1, -1),
-                                        new FieldExpression(timestampField)),
-                            Token.newSymbol(COMPARE_GREATER_THAN, -1, -1),
-                            new ConstantExpression(1000L))),
-                    // then: this.__createdAt = System.currentTimeMillis()
-                    new ExpressionStatement(new BinaryExpression(new FieldExpression(timestampField),
+            // (System.currentTimeMillis() - this.__lastUpdated) > 1000
+            BinaryExpression timeDiff = new BinaryExpression(
+                    nowCall,
+                    Token.newSymbol(MINUS, -1, -1),
+                    new FieldExpression(lastUpdatedField)
+            )
+            BinaryExpression condition = new BinaryExpression(
+                    timeDiff,
+                    Token.newSymbol(COMPARE_GREATER_THAN, -1, -1),
+                    new ConstantExpression(1000L)
+            )
+
+            // then block: { this.__createdAt = now; this.__lastUpdated = now; }
+            BlockStatement thenBlock = new BlockStatement()
+            thenBlock.addStatement(new ExpressionStatement(
+                    new BinaryExpression(
+                            new FieldExpression(timestampField),
+                            Token.newSymbol(COMPARE_EQUAL, -1, -1),
+                            nowCall
+                    )
+            ))
+            thenBlock.addStatement(new ExpressionStatement(
+                    new BinaryExpression(
+                            new FieldExpression(lastUpdatedField),
                             Token.newSymbol(EQUAL, -1, -1),
-                            new MethodCallExpression(new ClassExpression(ClassHelper.make(System)),
-                                    "currentTimeMillis",
-                                    ArgumentListExpression.EMPTY_ARGUMENTS))),
-                    EmptyStatement.INSTANCE))
+                            nowCall
+                    )
+            ))
 
-
+            IfStatement ifStmt = new IfStatement(new BooleanExpression(condition), thenBlock, EmptyStatement.INSTANCE)
+            BlockStatement newCode = new BlockStatement()
+            newCode.addStatement(ifStmt)
             newCode.addStatements(originalCode.statements)
             method.code = newCode
         }
 
-        // --- Add clearTimestamp() method ---
+        // --- clearTimestamp() ---
         BlockStatement clearBody = new BlockStatement()
         clearBody.addStatement(new ExpressionStatement(new BinaryExpression(new VariableExpression("__createdAt"),
-                Token.newSymbol(Types.EQUAL, -1, -1),
+                Token.newSymbol(EQUAL, -1, -1),
                 new ConstantExpression(0L))))
 
         MethodNode clearMethod = new MethodNode("clearTimestamp",
