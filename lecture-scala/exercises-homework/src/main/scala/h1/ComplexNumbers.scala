@@ -24,8 +24,6 @@ case class Complex(re: Double, im: Double):
 			case (0, _) => s"${imStr}i"
 			case (_, i)
 				if (i > 0) => s"$reStr+${imStr}i"
-			case (_, i)
-				if (i == 0) => s"$imStr"
 			case (_, i) => s"$reStr${imStr}i"
 	}
 
