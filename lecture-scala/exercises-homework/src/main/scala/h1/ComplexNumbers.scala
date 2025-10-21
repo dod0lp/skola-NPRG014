@@ -19,14 +19,14 @@ case class Complex(re: Double, im: Double):
 		val reStr = doubleToString(re)
 		val imStr = doubleToString(im)
 
-		(im, re) match
-			case (0, _) => s"$reStr"
-			case (_, 0) => s"${imStr}i"
-			case (i, _)
+		(re, im) match
+			case (_, 0) => s"$reStr"
+			case (0, _) => s"${imStr}i"
+			case (_, i)
 				if (i > 0) => s"$reStr+${imStr}i"
-			case (i, _)
+			case (_, i)
 				if (i == 0) => s"$imStr"
-			case (i, _) => s"$reStr${imStr}i"
+			case (_, i) => s"$reStr${imStr}i"
 	}
 
 	def +(other: Complex): Complex = {
@@ -55,4 +55,4 @@ object ComplexNumbers:
 		val c = (2+3*I + 1 + 4*I) * I
 		println(-c) // 7-3i
 
-    // println(Complex(0, 1)) // idk if this should be 0+1i or only 1i or perhaps only i
+		// println(Complex(0, 1)) // idk if this should be 0+1i or only 1i or perhaps only i
