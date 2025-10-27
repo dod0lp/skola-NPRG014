@@ -40,10 +40,15 @@ case class Complex(re: Double, im: Double):
 
 
 object ComplexNumbers:
-	implicit def doubleToComplex(x: Double): Complex = Complex(x, 0)
+//	implicit def doubleToComplex(x: Double): Complex = Complex(x, 0)
+
+	given Conversion[Int, Complex] with
+		def apply(x: Int): Complex = Complex(x.toDouble, 0)
+
 	object I extends Complex(0, 1)
 
 	def main(args: Array[String]): Unit =
+		import ComplexNumbers.given
 
 		println(Complex(1,2)) // 1+2i
 
