@@ -7,7 +7,6 @@ List(h2.PersonState@3d24753a)
 Person John Doe aged 24
 Thing Box with color (255,0,0)
 Person Joe aged 24
-
 */
 
 package h2
@@ -16,72 +15,58 @@ import scala.collection.mutable.ListBuffer
 
 
 trait WithExplicitState:
-  /* add necessary declarations here */
   type State
-  protected def state: State/* add the correct type here */
-  protected def state_=(state: State/* add the correct type here */): Unit
+  protected def state: State
+  protected def state_=(state: State): Unit
 
-  class PersonState(val name: String, val age: Int):
-    override def toString = s"Person $name aged $age"
-
-
-class PersonState(val name: String, val age: Int):
-  override def toString = s"Person $name aged $age"
+class PersonState(val name: String, val age: Int)
 
 class Person extends WithExplicitState:
-  /* Implement this class. It should have no knowledge of the trait History. It should use instances of PersonState as the state. */
   type State = PersonState
-  protected var state: State = PersonState("", 0)
+  protected var state = new PersonState("", 0)
 
-  def setName(n: String): Person = {
-    state = PersonState(n, state.age); this
+  def setName(name: String): this.type = {
+    state = new PersonState(name, state.age); this
   }
 
-  def setAge(a: Int): Person = {
-    state = PersonState(state.name, a); this
+  def setAge(age: Int): this.type = {
+    state = new PersonState(state.name, age); this
   }
 
-  override def toString: String = state.toString
-
+  override def toString: String = s"Person ${state.name} aged ${state.age}"
 
 type RGBColor = (Int, Int, Int)
-class ThingState(val name: String, val color: RGBColor):
-  override def toString = s"Thing $name with color ${color}"
+
+class ThingState(val name: String, val color: RGBColor)
 
 class Thing extends WithExplicitState:
-  /* Implement this class. It should have no knowledge of the trait History. It should use instances of ThingState as the state. */
   type State = ThingState
-  protected var state: State = ThingState("", (0, 0, 0))
+  protected var state = new ThingState("", (0, 0, 0))
 
-  def setName(n: String): Thing = {
-    state = ThingState(n, state.color); this
+  def setName(name: String): this.type = {
+    state = new ThingState(name, state.color); this
   }
 
-  def setColor(c: RGBColor): Thing = {
-    state = ThingState(state.name, c); this
+  def setColor(color: RGBColor): this.type = {
+    state = new ThingState(state.name, color); this
   }
 
-  override def toString: String = state.toString
-
-
+  override def toString: String = s"Thing ${state.name} with color ${state.color}"
 
 trait History extends WithExplicitState:
-  this: WithExplicitState =>
-    /* Add necessary declarations here. This trait should have no knowledge of classes Person, Thing, PersonState, ThingState.
-       It should depend only on the trait WithExplicitState.
-    */
-    val hist: ListBuffer[State] = ListBuffer.empty[State]
+  val hist: ListBuffer[State] = ListBuffer.empty[State]
 
-    def checkpoint(): this.type =
-      hist.append(state)
-      this
+  def checkpoint(): this.type = {
+    hist.append(state)
+    this
+  }
 
-    def history: List[State] = hist.toList
+  def history: List[State] = hist.toList
 
-    def restoreTo(s: State): this.type =
-      state = s
-      this
-
+  def restoreTo(s: State): this.type = {
+    state = s
+    this
+  }
 
 object ExplicitStateTest:
   def main(args: Array[String]): Unit =
@@ -108,5 +93,5 @@ object ExplicitStateTest:
     joe.restoreTo(johnsPrevState).setName("Joe")
     println(joe)
 
-    // The line below must not compile. It should complain about an incompatible type.
-    // box.restoreTo(johnsPrevState)
+// The line below must not compile. It should complain about an incompatible type.
+// box.restoreTo(johnsPrevState)
