@@ -10,7 +10,6 @@ Person Joe aged 24
 
 */
 
-/*
 package h2
 
 import scala.collection.mutable.ListBuffer
@@ -18,22 +17,51 @@ import scala.collection.mutable.ListBuffer
 
 trait WithExplicitState:
   /* add necessary declarations here */
+  type State
+  protected def state: State/* add the correct type here */
+  protected def state_=(state: State/* add the correct type here */): Unit
 
-  protected def state: /* add the correct type here */
-  protected def state_=(state: /* add the correct type here */): Unit
+  class PersonState(val name: String, val age: Int):
+    override def toString = s"Person $name aged $age"
 
 
-class PersonState(val name: String, val age: Int)
+class PersonState(val name: String, val age: Int):
+  override def toString = s"Person $name aged $age"
 
 class Person extends WithExplicitState:
   /* Implement this class. It should have no knowledge of the trait History. It should use instances of PersonState as the state. */
+  type State = PersonState
+  protected var state: State = PersonState("", 0)
+
+  def setName(n: String): Person = {
+    state = PersonState(n, state.age); this
+  }
+
+  def setAge(a: Int): Person = {
+    state = PersonState(state.name, a); this
+  }
+
+  override def toString: String = state.toString
 
 
 type RGBColor = (Int, Int, Int)
-class ThingState(val name: String, val color: RGBColor)
+class ThingState(val name: String, val color: RGBColor):
+  override def toString = s"Thing $name with color ${color}"
 
 class Thing extends WithExplicitState:
   /* Implement this class. It should have no knowledge of the trait History. It should use instances of ThingState as the state. */
+  type State = ThingState
+  protected var state: State = ThingState("", (0, 0, 0))
+
+  def setName(n: String): Thing = {
+    state = ThingState(n, state.color); this
+  }
+
+  def setColor(c: RGBColor): Thing = {
+    state = ThingState(state.name, c); this
+  }
+
+  override def toString: String = state.toString
 
 
 
@@ -82,5 +110,3 @@ object ExplicitStateTest:
 
     // The line below must not compile. It should complain about an incompatible type.
     // box.restoreTo(johnsPrevState)
-
-*/
