@@ -65,20 +65,20 @@ class Thing extends WithExplicitState:
 
 
 
-trait History:
+trait History extends WithExplicitState:
+  this: WithExplicitState =>
     /* Add necessary declarations here. This trait should have no knowledge of classes Person, Thing, PersonState, ThingState.
        It should depend only on the trait WithExplicitState.
     */
+    val hist: ListBuffer[State] = ListBuffer.empty[State]
 
-    val hist = ListBuffer.empty[/* add the correct type here */]
-
-    def checkpoint(): /* add the correct type here */ =
+    def checkpoint(): this.type =
       hist.append(state)
       this
 
-    def history = hist.toList
+    def history: List[State] = hist.toList
 
-    def restoreTo(s: /* add the correct type here */): /* add the correct type here */ =
+    def restoreTo(s: State): this.type =
       state = s
       this
 
