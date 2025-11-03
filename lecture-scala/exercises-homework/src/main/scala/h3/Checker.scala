@@ -34,11 +34,12 @@ class Monitor[T]:
       case Nil => true
       case event :: rest =>
         if func.isDefinedAt(event) then
-          val result = func(event)
+          val savedEvents = eventsToBeProcessed
           eventsToBeProcessed = rest
+          val result = func(event)
+          if !result then eventsToBeProcessed = savedEvents
           result
-        else
-          true
+        else true
 
 class MyMonitor extends Monitor[Event] :
   property("The first command should succeed or fail before it is received again") {
