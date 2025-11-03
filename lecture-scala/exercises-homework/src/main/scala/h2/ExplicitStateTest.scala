@@ -55,7 +55,10 @@ class Thing extends WithExplicitState:
 
   override def toString: String = s"Thing ${state.name} with color ${state.color}"
 
-trait History extends WithExplicitState:
+//trait History extends WithExplicitState
+  //so i guess just this following is the fix? to not extend, but require WithExplicitState?
+trait History:
+  this: WithExplicitState =>
   val hist: ListBuffer[State] = ListBuffer.empty[State]
 
   def checkpoint(): this.type = {
