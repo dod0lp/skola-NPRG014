@@ -9,18 +9,27 @@ class Person(val firstName: String, val lastName: String, val phone: PhoneNo)
 class Address(val person: Person, val street: String, val city: String)
 
 // ... add the necessary classes
+def wrapObj(str: String): String =
+  "{ " + str + " }"
+
+extension (base: String)
+  def addToStr(key: String, value: String): String =
+    val pair = "\"" + key + "\": " + value
+    if base.isEmpty then pair
+    else base + ", " + pair
+
 trait JsonSerializer[T]:
-  def serialize(x: T): String
+  def serialize(obj: T): String
 
   extension (x: T)
     def toJson: String = serialize(x)
 
 object JsonSerializer:
   given JsonSerializer[String] with
-    def serialize(s: String) = "\"" + s + "\""
+    def serialize(obj: String) = "\"" + obj + "\""
 
   given JsonSerializer[Int] with
-    def serialize(i: Int) = i.toString
+    def serialize(obj: Int) = obj.toString
 
   given listSerializer[T](using js: JsonSerializer[T]):
   JsonSerializer[List[T]] with
@@ -32,34 +41,28 @@ object JsonSerializer:
     def serialize(m: Map[String, T]) =
       m.map((k, v) => "\"" + k + "\": " + v.toJson).mkString("{ ", ", ", " }")
 
-object PhoneNo:
+//object PhoneNo:
   given JsonSerializer[PhoneNo] with
-    def serialize(p: PhoneNo) =
-      import JsonSerializer.given
-        "{ " +
-          "\"prefix\": " + p.prefix.toJson + ", " +
-          "\"number\": " + p.number.toJson +
-          " }"
+    def serialize(obj: PhoneNo) =
+      var temp = "".addToStr("prefix", obj.prefix.toJson)
+      temp = temp.addToStr("number", obj.number.toJson)
+      wrapObj(temp)
 
-object Person:
+//  object Person:
   given JsonSerializer[Person] with
-    def serialize(p: Person) =
-      import JsonSerializer.given
-      "{ " +
-        "\"firstName\": " + p.firstName.toJson + ", " +
-        "\"lastName\": " + p.lastName.toJson + ", " +
-        "\"phone\": " + p.phone.toJson +
-        " }"
+    def serialize(obj: Person) =
+      var temp = "".addToStr("firstName", obj.firstName.toJson)
+      temp = temp.addToStr("lastName", obj.lastName.toJson)
+      temp = temp.addToStr("phone", obj.phone.toJson)
+      wrapObj(temp)
 
-object Address:
+//  object Address:
   given JsonSerializer[Address] with
-    def serialize(a: Address) =
-      import JsonSerializer.given
-      "{ " +
-        "\"person\": " + a.person.toJson + ", " +
-        "\"street\": " + a.street.toJson + ", " +
-        "\"city\": " + a.city.toJson +
-        " }"
+    def serialize(obj: Address) =
+      var temp = "".addToStr("person", obj.person.toJson)
+      temp = temp.addToStr("street", obj.street.toJson)
+      temp = temp.addToStr("city", obj.city.toJson)
+      wrapObj(temp)
 
 object JsonSerializerTest:
   def main(args: Array[String]): Unit =
