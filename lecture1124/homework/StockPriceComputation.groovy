@@ -72,33 +72,48 @@ group.with {
     //implement the three operators and utility intermediate channels here
 
 
-// Intermediate channels
     final chicagoEURPrices = new DataflowQueue()
     final dailyPricesEUR = new DataflowQueue()
 
-// Operator 1: Convert Chicago USD to EUR
+// Chicago USD to EUR
     operator(inputs: [chicagoUSDPrices, usd2eurRates], outputs: [chicagoEURPrices]) { usd, rate ->
-        bindOutput(0, usd * rate)
+        bindOutput(usd * rate)
     }
 
-// Operator 2: Daily average with Paris correction
-    def parisState = [lastValue: 0]
+// Daily average + paris
+/////////////////////////
+// ///////////////////////
+// ///////////////////////
+// (In task description there are mentioned FOUR operators up in description, but
+// THREE default comment slightly above here)
+// ///////////////////////
+// ///////////////////////
+// ///////////////////////
+    def _paris = [lastValue: 0]
     operator(inputs: [parisEURPrices, viennaEURPrices, frankfurtEURPrices, chicagoEURPrices],
             outputs: [dailyPricesEUR, avgPrices],
-            stateObject: parisState) { paris, vienna, frankfurt, chicago ->
-        if (paris != 0) parisState.lastValue = paris
-        else paris = parisState.lastValue
-        def avg = (paris + vienna + frankfurt + chicago) / 4
-        bindOutput(0, avg)  // to dailyPricesEUR
-        bindOutput(1, avg)  // to avgPrices
+            stateObject: _paris) { paris, vienna, frankfurt, chicago ->
+        if (paris == 0) {
+            paris = _paris.lastValue
+        }
+
+        _paris.lastValue = paris
+        final exchanges = [paris, vienna, frankfurt, chicago]
+        final avg = exchanges.sum() / exchanges.size()
+        bindAllOutputs(avg);
     }
 
-// Operator 3: Five-day moving average
-    def windowState = [prices: []]
-    operator(inputs: [dailyPricesEUR], outputs: [fiveDayAverages], stateObject: windowState) { price ->
-        windowState.prices << price
-        if (windowState.prices.size() > 5) windowState.prices.remove(0)
-        def fiveDayAvg = windowState.prices.sum() / windowState.prices.size()
+// Five-day moving average
+    def _window = [prices: []]
+    operator(inputs: [dailyPricesEUR], outputs: [fiveDayAverages], stateObject: _window) { price ->
+        _window.prices << price
+
+        if (_window.prices.size() > 5) {
+            _window.prices.remove(0)
+        }
+
+        final prices = _window.prices
+        final fiveDayAvg = prices.sum() / prices.size()
         bindOutput(fiveDayAvg)
     }
 
