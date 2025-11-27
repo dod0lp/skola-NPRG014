@@ -72,19 +72,35 @@ group.with {
     //implement the three operators and utility intermediate channels here
 
 
+// Intermediate channels
+    final chicagoEURPrices = new DataflowQueue()
+    final dailyPricesEUR = new DataflowQueue()
 
+// Operator 1: Convert Chicago USD to EUR
+    operator(inputs: [chicagoUSDPrices, usd2eurRates], outputs: [chicagoEURPrices]) { usd, rate ->
+        bindOutput(0, usd * rate)
+    }
 
+// Operator 2: Daily average with Paris correction
+    def parisState = [lastValue: 0]
+    operator(inputs: [parisEURPrices, viennaEURPrices, frankfurtEURPrices, chicagoEURPrices],
+            outputs: [dailyPricesEUR, avgPrices],
+            stateObject: parisState) { paris, vienna, frankfurt, chicago ->
+        if (paris != 0) parisState.lastValue = paris
+        else paris = parisState.lastValue
+        def avg = (paris + vienna + frankfurt + chicago) / 4
+        bindOutput(0, avg)  // to dailyPricesEUR
+        bindOutput(1, avg)  // to avgPrices
+    }
 
-
-
-
-
-
-
-
-
-
-
+// Operator 3: Five-day moving average
+    def windowState = [prices: []]
+    operator(inputs: [dailyPricesEUR], outputs: [fiveDayAverages], stateObject: windowState) { price ->
+        windowState.prices << price
+        if (windowState.prices.size() > 5) windowState.prices.remove(0)
+        def fiveDayAvg = windowState.prices.sum() / windowState.prices.size()
+        bindOutput(fiveDayAvg)
+    }
 
     //================================= do not modify beyond this point    
 
