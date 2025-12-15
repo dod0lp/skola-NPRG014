@@ -1,31 +1,31 @@
+// Provide types so that test_shapes.ts functions properly as described in comments.
+
 export type RGBColor = { r: number; g: number; b: number };
 export type Color = keyof typeof colorTable | RGBColor;
 
-export interface Circle {
-    type: 'circle';
-    radius: number;
+interface BaseShape {
+    type: ShapeType;
     color: Color;
 }
 
-export interface Rectangle {
-    type: 'rectangle';
+export interface Circle extends BaseShape {
+    radius: number;
+}
+
+export interface Rectangle extends BaseShape {
     width: number;
     height: number;
-    color: Color;
 }
 
-export interface Square {
-    type: 'square';
+export interface Square extends BaseShape {
     width: number;
-    color: Color;
 }
 
-export interface Triangle {
-    type: 'triangle';
+export interface Triangle extends BaseShape {
     base: number;
     height: number;
-    color: Color;
 }
+
 
 export type ShapeType = 'circle' | 'rectangle' | 'square' | 'triangle';
 export type Shape = Circle | Rectangle | Square | Triangle;
@@ -51,10 +51,6 @@ export function calculateShapeArea(shape: Circle | Rectangle | Triangle): number
 export function invertColor<T extends { color: Color }>(shape: T): T & { color: RGBColor };
 
 // export function filterShapesByType<T extends Shape, K extends T['type']>(
-//     shapes: T[],
-//     types: readonly K[]
-// ): Extract<T, { type: K }>[]; 
-
 export function filterShapesByType<T extends Shape, K extends ShapeType>(
   shapes: T[],
   types: readonly K[]
